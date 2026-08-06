@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import {
   fetchPullRequestDescription,
   readOrCreateDescriptionDraft,
+  readOrphanDraftBranchNames,
 } from "../description.ts";
 import type { CommandRunner } from "../exec.ts";
 import { getRepositoryPaths, getStackView } from "../repo.ts";
@@ -11,7 +12,7 @@ import type { Layer } from "../types.ts";
 import { buildSubmitCommandPlan } from "./command-plan.ts";
 import { executeSubmitPlan } from "./execute-plan.ts";
 import { findUnfilledLayerNames, submitBodyPath } from "./paths.ts";
-import type { SubmitLayerState, SubmitResult } from "./types.ts";
+import type { SubmitLayerState, SubmitOptions, SubmitResult } from "./types.ts";
 
 async function readDrafts(
   layers: readonly Layer[],
@@ -53,7 +54,10 @@ async function writeBodies(
   }
 }
 
-export async function submitStack(run: CommandRunner): Promise<SubmitResult> {
+export async function submitStack(
+  run: CommandRunner,
+  options: SubmitOptions = {},
+): Promise<SubmitResult> {
   const stackView = await getStackView(run);
   if (stackView.kind === "not-in-stack") {
     throw new Error(stackView.message);
@@ -63,6 +67,14 @@ export async function submitStack(run: CommandRunner): Promise<SubmitResult> {
   }
 
   const repository = await getRepositoryPaths(run);
+  const layerNames = stackView.stack.layers.map((layer) => layer.name);
+  const orphanDraftBranchNames = await readOrphanDraftBranchNames(
+    repository.absoluteGitDir,
+    layerNames,
+  );
+  if (orphanDraftBranchNames.length > 0) {
+    options.onOrphanDrafts?.(orphanDraftBranchNames);
+  }
   const drafts = await readDrafts(
     stackView.stack.layers,
     repository.absoluteGitDir,

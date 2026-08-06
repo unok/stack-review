@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 
 import type { ControlState } from "./control/index.ts";
 import { runControlMode } from "./control/index.ts";
+import { formatOrphanDraftWarning } from "./description.ts";
 import { runCommand } from "./exec.ts";
 import {
   createReviewEnvironment,
@@ -203,7 +204,11 @@ async function runDefaultMode(executablePath: string): Promise<void> {
 }
 
 async function runSubmitMode(): Promise<void> {
-  const result = await submitStack(runCommand);
+  const result = await submitStack(runCommand, {
+    onOrphanDrafts: (branchNames) => {
+      process.stderr.write(`${formatOrphanDraftWarning(branchNames)}\n`);
+    },
+  });
   const message = formatSubmitResult(result);
   if (result.kind !== "succeeded") {
     throw new Error(message);

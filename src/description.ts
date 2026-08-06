@@ -1,7 +1,11 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import type { CommandResult, CommandRunner } from "./exec.ts";
+
+const DRAFT_FILE_EXTENSION = ".md";
+const ORPHAN_DRAFT_ADVICE =
+  "      リネームか削除の可能性があります。リネームなら重複 PR ができます。";
 
 interface DescriptionDraft {
   title: string | null;
@@ -30,16 +34,73 @@ function encodedBranchName(branchName: string): string {
   return encodeURIComponent(branchName);
 }
 
+function descriptionDraftDirectory(absoluteGitDir: string): string {
+  return join(absoluteGitDir, "stack-review", "descriptions");
+}
+
 function descriptionDraftPath(
   absoluteGitDir: string,
   branchName: string,
 ): string {
   return join(
-    absoluteGitDir,
-    "stack-review",
-    "descriptions",
-    `${encodedBranchName(branchName)}.md`,
+    descriptionDraftDirectory(absoluteGitDir),
+    `${encodedBranchName(branchName)}${DRAFT_FILE_EXTENSION}`,
   );
+}
+
+function decodedBranchName(encodedName: string): string {
+  try {
+    return decodeURIComponent(encodedName);
+  } catch (error: unknown) {
+    if (!(error instanceof URIError)) {
+      throw error;
+    }
+    return encodedName;
+  }
+}
+
+function findOrphanDraftBranchNames(
+  draftFileNames: readonly string[],
+  stackBranchNames: readonly string[],
+): string[] {
+  const stackBranches = new Set(stackBranchNames);
+  const orphanBranches = new Set<string>();
+  for (const fileName of draftFileNames) {
+    if (fileName.endsWith(DRAFT_FILE_EXTENSION)) {
+      const encodedBranch = fileName.slice(0, -DRAFT_FILE_EXTENSION.length);
+      const branchName = decodedBranchName(encodedBranch);
+      if (!stackBranches.has(branchName)) {
+        orphanBranches.add(branchName);
+      }
+    }
+  }
+  return [...orphanBranches].sort();
+}
+
+async function readOrphanDraftBranchNames(
+  absoluteGitDir: string,
+  stackBranchNames: readonly string[],
+): Promise<string[]> {
+  let fileNames: string[];
+  try {
+    fileNames = await readdir(descriptionDraftDirectory(absoluteGitDir));
+  } catch (error: unknown) {
+    if (isMissingFile(error)) {
+      return [];
+    }
+    throw error;
+  }
+  return findOrphanDraftBranchNames(fileNames, stackBranchNames);
+}
+
+function formatOrphanDraftWarning(branchNames: readonly string[]): string {
+  if (branchNames.length === 0) {
+    return "";
+  }
+  return [
+    `警告: スタックに無い draft が ${branchNames.length} 件あります（${branchNames.join(", ")}）。`,
+    ORPHAN_DRAFT_ADVICE,
+  ].join("\n");
 }
 
 function descriptionBaselinePath(
@@ -206,13 +267,17 @@ export type {
 };
 export {
   descriptionBaselinePath,
+  descriptionDraftDirectory,
   descriptionDraftPath,
   emptyDescriptionTemplate,
   fetchPullRequestDescription,
+  findOrphanDraftBranchNames,
   formatDescriptionBaseline,
+  formatOrphanDraftWarning,
   hasDescriptionContent,
   parseDescriptionDraft,
   parsePullRequestViewResult,
   readOrCreateDescriptionDraft,
+  readOrphanDraftBranchNames,
   writeDescriptionBaseline,
 };

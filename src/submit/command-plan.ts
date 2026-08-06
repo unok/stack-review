@@ -58,6 +58,7 @@ function editLayerCommand(
     layerName: layer.layerName,
     action: "edit",
     pullRequestNumber: pullRequest.number,
+    // GitHub はスタック内 PR の base 変更を拒否するため、連鎖は gh stack link に委ねる。
     argv: [
       "gh",
       "pr",

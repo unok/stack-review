@@ -10,6 +10,7 @@ export type {
   SubmitFailure,
   SubmitLayerCommand,
   SubmitLayerState,
+  SubmitOptions,
   SubmitResult,
   SubmittedPullRequest,
 } from "./types.ts";

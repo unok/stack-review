@@ -29,6 +29,10 @@ export interface SubmittedPullRequest {
   url: string;
 }
 
+export interface SubmitOptions {
+  onOrphanDrafts?: (branchNames: readonly string[]) => void;
+}
+
 export interface SubmitFailure {
   argv: string[];
   exitCode: number;

@@ -11,6 +11,10 @@ import { controlState, screenState } from "./test-helpers.ts";
 const REVIEW_COMPLETION_PROMPT = "  全部見終えたら Enter → _";
 const WORKING_TREE_WARNING =
   "警告: 未コミット変更 2 件はどのレイヤーにも含まれません。";
+const ORPHAN_DRAFT_WARNING =
+  "警告: スタックに無い draft が 2 件あります（old-branch, renamed-thing）。";
+const ORPHAN_DRAFT_ADVICE =
+  "リネームか削除の可能性があります。リネームなら重複 PR ができます。";
 
 describe("buildControlScreen", () => {
   describe("success", () => {
@@ -34,6 +38,22 @@ describe("buildControlScreen", () => {
 
       expect(screen).toContain(WORKING_TREE_WARNING);
       expect(screen.indexOf("警告:")).toBeLessThan(screen.indexOf("branch"));
+    });
+
+    it("shows orphan draft branches before the layer table", () => {
+      const screen = buildControlScreen(
+        screenState(false, ["old-branch", "renamed-thing"]),
+      );
+
+      expect(screen).toContain(ORPHAN_DRAFT_WARNING);
+      expect(screen).toContain(ORPHAN_DRAFT_ADVICE);
+      expect(screen.indexOf("警告:")).toBeLessThan(screen.indexOf("branch"));
+    });
+
+    it("does not show an orphan warning when every draft is in the stack", () => {
+      expect(buildControlScreen(screenState())).not.toContain(
+        "スタックに無い draft",
+      );
     });
 
     it("marks an empty description so it is visible at a glance", () => {

@@ -9,10 +9,12 @@ import {
   descriptionDraftPath,
   emptyDescriptionTemplate,
   fetchPullRequestDescription,
+  findOrphanDraftBranchNames,
   formatDescriptionBaseline,
   parseDescriptionDraft,
   parsePullRequestViewResult,
   readOrCreateDescriptionDraft,
+  readOrphanDraftBranchNames,
 } from "./description.ts";
 import type { CommandRunner } from "./exec.ts";
 
@@ -32,6 +34,10 @@ afterEach(async () => {
   );
 });
 
+function orphanDraftBranchNames(draftFileNames: readonly string[]): string[] {
+  return findOrphanDraftBranchNames(draftFileNames, ["core"]);
+}
+
 describe("description paths", () => {
   describe("success", () => {
     it("encodes a slash in a branch name into one safe file name", () => {
@@ -41,6 +47,66 @@ describe("description paths", () => {
       expect(descriptionBaselinePath("/repo/.git", "refactor/foo")).toBe(
         "/repo/.git/stack-review/baseline/refactor%2Ffoo.md",
       );
+    });
+  });
+});
+
+describe("orphan description drafts", () => {
+  describe("success", () => {
+    it("returns no orphans when every draft matches a stack branch", () => {
+      expect(
+        findOrphanDraftBranchNames(["core.md", "api.md"], ["core", "api"]),
+      ).toEqual([]);
+    });
+
+    it("finds and sorts drafts whose branches are absent from the stack", () => {
+      expect(
+        orphanDraftBranchNames(["core.md", "old-branch.md", "deleted.md"]),
+      ).toEqual(["deleted", "old-branch"]);
+      expect(
+        orphanDraftBranchNames(["deleted.md", "old-branch.md", "core.md"]),
+      ).toEqual(["deleted", "old-branch"]);
+    });
+
+    it("decodes encoded branch names before matching", () => {
+      expect(
+        findOrphanDraftBranchNames(
+          ["refactor%2Ffoo.md", "old%2Ffoo.md"],
+          ["refactor/foo"],
+        ),
+      ).toEqual(["old/foo"]);
+    });
+
+    it("ignores files outside the Markdown draft format", () => {
+      expect(
+        findOrphanDraftBranchNames(
+          ["core.md", "old-branch.txt", "notes"],
+          ["core"],
+        ),
+      ).toEqual([]);
+    });
+
+    it("returns no orphans when the draft directory is missing", async () => {
+      const gitDirectory = await temporaryDirectory();
+
+      await expect(
+        readOrphanDraftBranchNames(gitDirectory, ["core"]),
+      ).resolves.toEqual([]);
+    });
+  });
+
+  describe("failure", () => {
+    it("reports an undecodable Markdown filename as an orphan", () => {
+      expect(findOrphanDraftBranchNames(["%.md"], ["core"])).toEqual(["%"]);
+    });
+
+    it("keeps normal draft matching when an undecodable filename is mixed in", () => {
+      expect(
+        findOrphanDraftBranchNames(
+          ["core.md", "refactor%2Ffoo.md", "100%done.md", "old.md"],
+          ["core", "refactor/foo"],
+        ),
+      ).toEqual(["100%done", "old"]);
     });
   });
 });

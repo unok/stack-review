@@ -59,13 +59,17 @@ export function controlState(absoluteGitDir: string): ControlState {
   };
 }
 
-export function screenState(hasChanges = false): ControlScreenState {
+export function screenState(
+  hasChanges = false,
+  orphanDraftBranchNames: readonly string[] = [],
+): ControlScreenState {
   let changeCount = 0;
   if (hasChanges) {
     changeCount = 2;
   }
   return {
     repositoryName: "xix",
+    orphanDraftBranchNames,
     workingTreeStatus: {
       hasChanges,
       changeCount,

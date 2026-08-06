@@ -27,6 +27,7 @@ export interface ControlScreenState {
   repositoryName: string;
   layers: readonly ControlLayerStatus[];
   workingTreeStatus: WorkingTreeStatus;
+  orphanDraftBranchNames: readonly string[];
 }
 
 export interface ControlModeDependencies {

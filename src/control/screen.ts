@@ -1,4 +1,7 @@
-import { hasDescriptionContent } from "../description.ts";
+import {
+  formatOrphanDraftWarning,
+  hasDescriptionContent,
+} from "../description.ts";
 import type { ReviewNoteStore } from "../hunk/index.ts";
 import type {
   ControlScreenState,
@@ -38,6 +41,13 @@ export function buildControlScreen(state: ControlScreenState): string {
     );
   }
 
+  if (state.orphanDraftBranchNames.length > 0) {
+    lines.push(
+      ...formatOrphanDraftWarning(state.orphanDraftBranchNames).split("\n"),
+      "",
+    );
+  }
+
   lines.push(
     `  ${"#".padStart(numberWidth)}  ${"branch".padEnd(branchWidth)}  ${"files".padStart(filesWidth)}  ${"TODO".padStart(todoWidth)}  hunk      desc`,
   );
@@ -69,10 +79,12 @@ export function reviewSessionSnapshotName(
 export function buildControlScreenState(
   state: ControlState,
   store: ReviewNoteStore,
+  orphanDraftBranchNames: readonly string[] = [],
 ): ControlScreenState {
   return {
     repositoryName: state.repositoryName,
     workingTreeStatus: state.workingTreeStatus,
+    orphanDraftBranchNames,
     layers: state.stack.layers.map((layer, index) => {
       const diffSnapshot = store.get(
         reviewSessionSnapshotName(layer.name, "diff"),

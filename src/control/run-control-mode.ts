@@ -1,4 +1,5 @@
 import { unlink } from "node:fs/promises";
+import { readOrphanDraftBranchNames } from "../description.ts";
 import { runCommand } from "../exec.ts";
 import { destroyReviewEnvironment } from "../herdr/index.ts";
 import {
@@ -142,6 +143,10 @@ async function runControlMode(
 ): Promise<void> {
   const state = await readControlState(statePath);
   await removeStateFile(statePath);
+  const orphanDraftBranchNames = await readOrphanDraftBranchNames(
+    state.absoluteGitDir,
+    state.stack.layers.map((layer) => layer.name),
+  );
   const run = dependencies.run ?? runCommand;
   const waitForReviewEnd =
     dependencies.waitForReviewEnd ?? waitForEnterOrInterrupt;
@@ -156,9 +161,13 @@ async function runControlMode(
   });
 
   await pollOnce(poller, recordPollingError);
-  drawControlScreen(buildControlScreenState(state, store));
+  drawControlScreen(
+    buildControlScreenState(state, store, orphanDraftBranchNames),
+  );
   const redrawTimer = globalThis.setInterval(() => {
-    drawControlScreen(buildControlScreenState(state, store));
+    drawControlScreen(
+      buildControlScreenState(state, store, orphanDraftBranchNames),
+    );
   }, CONTROL_REFRESH_INTERVAL_MS);
   const endReason = await waitForReviewEnd();
   globalThis.clearInterval(redrawTimer);
