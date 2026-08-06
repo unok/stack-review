@@ -12,6 +12,7 @@ interface PullRequestDescription {
   number: number;
   title: string;
   body: string;
+  url: string;
 }
 
 interface PreparedLayerDescription {
@@ -146,7 +147,7 @@ function parsePullRequestViewResult(
     throw new TypeError("gh pr view output must be an object");
   }
 
-  const { number, title, body } = parsed;
+  const { number, title, body, url } = parsed;
   if (typeof number !== "number" || !Number.isInteger(number) || number < 1) {
     throw new TypeError("gh pr view output.number must be a positive integer");
   }
@@ -156,7 +157,10 @@ function parsePullRequestViewResult(
   if (typeof body !== "string") {
     throw new TypeError("gh pr view output.body must be a string");
   }
-  return { number, title, body };
+  if (typeof url !== "string" || url.length === 0) {
+    throw new TypeError("gh pr view output.url must be a non-empty string");
+  }
+  return { number, title, body, url };
 }
 
 async function fetchPullRequestDescription(
@@ -164,7 +168,14 @@ async function fetchPullRequestDescription(
   branchName: string,
 ): Promise<PullRequestDescription | null> {
   return parsePullRequestViewResult(
-    await run(["gh", "pr", "view", branchName, "--json", "number,title,body"]),
+    await run([
+      "gh",
+      "pr",
+      "view",
+      branchName,
+      "--json",
+      "number,title,body,url",
+    ]),
   );
 }
 

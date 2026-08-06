@@ -1,21 +1,20 @@
 # stack-review
 
-`gh stack` で積んだ stacked PRs を、GitHub に submit する前に自分で読み切るための CLI。リポジトリの中で `stack-review` と打つと、herdr に専用ワークスペースが立ち上がり、各レイヤーの差分が hunk のタブに 1 枚ずつ開く。
+`gh stack` で積んだ stacked PRs を、GitHub に submit する前に自分で読み切るための CLI。リポジトリの中で `stack-review` と打つと、herdr に専用ワークスペースが立ち上がり、各レイヤーのコード差分と PR description が hunk のタブに開く。
 
-レビュアーが PR で見るのと同じ切り口（親レイヤーからの差分）で、submit する前に自分で確認できる。
+レビュアーが PR で見るコードと本文を、submit 前に同じレイヤー単位で確認できる。レビュー後の submit は Claude に依頼し、`stack-review submit` が draft の内容で PR を作成または更新する。
 
 ```
-workspace: review: myrepo          ← 新規作成。既存のワークスペースには触れない
-┌[control][1 auth-layer]-[2 api-endpoints]-[3 frontend]┐
-│ review: myrepo   3 layers                            │
-│                                                      │
-│   #  branch          files  TODO  hunk               │
-│   1  auth-layer          2     1  ● live             │
-│   2  api-endpoints       5     0  ● live             │
-│   3  frontend            3     2  ○ closed           │
-│                                                      │
-│   全部見終えたら Enter → _                           │
-└──────────────────────────────────────────────────────┘
+workspace: review: myrepo   ← 新規作成。既存のワークスペースには触れない
+┌[control][1 auth][1 auth desc][2 api][2 api desc]┐
+│ review: myrepo   2 layers                       │
+│                                                 │
+│   #  branch  files  TODO  hunk      desc        │
+│   1  auth        2     1  ● live    書済        │
+│   2  api         5     0  ○ closed  空          │
+│                                                 │
+│   全部見終えたら Enter → _                      │
+└─────────────────────────────────────────────────┘
 ```
 
 ## 必要なもの
@@ -24,7 +23,7 @@ workspace: review: myrepo          ← 新規作成。既存のワークスペ�
 |---|---|
 | [herdr](https://herdr.dev) | ワークスペースとタブの構築 |
 | [hunk](https://www.npmjs.com/package/hunk) 0.17 以上 | 差分表示と `session` API |
-| [gh](https://cli.github.com/) + [gh-stack](https://github.com/github/gh-stack) | スタック構成の取得と submit |
+| [gh](https://cli.github.com/) + [gh-stack](https://github.com/github/gh-stack) | スタック構成の取得、push、PR の作成と更新 |
 | Node.js 22.18 以上 | `.ts` の直接実行（型ストリップ） |
 
 ビルド工程は無い。`src/cli.ts` を Node がそのまま実行する。型ストリップが既定で有効になった Node 22.18 未満では動かないため、`package.json` の `engines` でも宣言している。
@@ -54,16 +53,49 @@ stack-review
 
 コマンドはレビュー環境を組み立てたら終了するので、起動したペインはすぐ解放される。以降は control タブが受け持つ。
 
-各レイヤーのタブを見て回り、直したい箇所には hunk の上でコメントを付ける。付けたコメントは control タブに TODO 件数として即座に反映される。全部見終えたら control タブで Enter を押す。
+各レイヤーにはコード差分のタブと、名前の末尾が `desc` の本文タブがある。本文タブには既存 PR の description と draft の差分が開く。コードだけでなく、タイトルと本文もプリフライトレビューの対象になる。
+
+直したい箇所には hunk の上でコメントを付ける。コード差分と本文のコメントは control タブの TODO 件数に合算される。全部見終えたら control タブで Enter を押す。
 
 Enter を押すと、付けたコメントが Markdown にまとまって表示され、`<absolute-git-dir>/stack-review/latest.md` に保存される。`<absolute-git-dir>` は `git rev-parse --absolute-git-dir` の出力で、worktree では `.git` 直下ではない。
 
-- コメントが 0 件なら `gh stack submit` を実行するか聞かれる。`--auto` は付かないので、PR のタイトルと本文は対話エディタで自分で書く
-- コメントが 1 件でもあれば submit は聞かれない。修正してからもう一度レビューする
+コメントが 0 件なら、Claude に渡す依頼文が表示される。draft が未記入なら、先に draft を書く依頼文になる。コメントが 1 件でもあれば依頼文は出ない。修正してからもう一度レビューする。
 
 最後にレビュー用ワークスペースを閉じるか聞かれる。既定は閉じる。
 
 途中で Ctrl-C を押しても、それまでに付けたコメントは保存される。この場合 submit は聞かれない。
+
+## PR description の draft
+
+draft は次の場所に置く。`<absolute-git-dir>` は `git rev-parse --absolute-git-dir` の出力で、worktree ごとに異なる。
+
+```text
+<absolute-git-dir>/stack-review/descriptions/<エンコード済みブランチ名>.md
+```
+
+ファイル名は JavaScript の `encodeURIComponent` でエンコードする。たとえば `refactor/foo` の draft は `refactor%2Ffoo.md` になる。
+
+1 行目の `# ` 見出しが PR タイトルで、2 行目以降が PR 本文になる。本文は空でもよいが、submit 前に全レイヤーのタイトルが必要になる。
+
+```markdown
+# セッション期限切れを処理する
+
+認証トークンの期限切れを明示的に扱う。
+```
+
+`stack-review` を先に起動すると、存在しない draft は `# ` だけのテンプレートとして作られる。先にファイルを用意してもよい。
+
+## Submit
+
+control タブに依頼文が出たら、その一行を Claude に渡す。Claude は対象リポジトリで次を実行する。
+
+```bash
+stack-review submit
+```
+
+このコマンドは全 draft のタイトルを検査してから全ブランチを push し、下のレイヤーから PR を作成または更新する。新規 PR は draft 状態で作り、最後に全ブランチを `gh stack link` でスタック化する。途中で失敗した場合はそこで止まり、完了済みの PR を表示する。
+
+`gh stack submit` は PR 本文を渡せないため直接実行しない。
 
 ## 仕組みで注意している点
 

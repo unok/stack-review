@@ -1,5 +1,5 @@
 import { unlink } from "node:fs/promises";
-import { runCommand, runInteractiveCommand } from "../exec.ts";
+import { runCommand } from "../exec.ts";
 import { destroyReviewEnvironment } from "../herdr/index.ts";
 import {
   type HunkSessionBinding,
@@ -15,6 +15,7 @@ import {
   drawControlScreen,
   reviewSessionSnapshotName,
 } from "./screen.ts";
+import { buildClaudeSubmitRequest } from "./submit-request.ts";
 import { askYesNo, waitForEnterOrInterrupt } from "./terminal.ts";
 import type {
   ControlModeDependencies,
@@ -22,7 +23,6 @@ import type {
   ReviewEndReason,
 } from "./types.ts";
 
-const SUBMIT_PROMPT = "gh stack submit を実行しますか？";
 const CLOSE_PROMPT = "レビューワークスペースを閉じますか？";
 const INTERRUPTED_MESSAGE =
   "プリフライトレビューを中断したため submit は実行しません。\n";
@@ -90,24 +90,14 @@ function collectNotes(
   ]);
 }
 
-interface ReportReviewResultOptions {
-  endReason: ReviewEndReason;
-  notes: readonly ReviewNote[];
-  promptYesNo: NonNullable<ControlModeDependencies["promptYesNo"]>;
-  repositoryRoot: string;
-  runInteractive: NonNullable<ControlModeDependencies["runInteractive"]>;
-}
-
-async function reportReviewResult({
-  endReason,
-  notes,
-  promptYesNo,
-  repositoryRoot,
-  runInteractive,
-}: ReportReviewResultOptions): Promise<void> {
-  if (notes.length > 0) {
+function reportReviewResult(
+  state: ControlState,
+  noteCount: number,
+  endReason: ReviewEndReason,
+): void {
+  if (noteCount > 0) {
     process.stdout.write(
-      `レビューメモが ${notes.length} 件あります。修正後にもう一度プリフライトレビューしてください。\n`,
+      `レビューメモが ${noteCount} 件あります。修正後にもう一度プリフライトレビューしてください。\n`,
     );
     return;
   }
@@ -115,17 +105,16 @@ async function reportReviewResult({
     process.stdout.write(INTERRUPTED_MESSAGE);
     return;
   }
-  if (!(await promptYesNo(SUBMIT_PROMPT, false))) {
-    return;
-  }
-  const exitCode = await runInteractive(["gh", "stack", "submit"], {
-    cwd: repositoryRoot,
-  });
-  if (exitCode !== 0) {
-    process.stderr.write(
-      `gh stack submit が終了コード ${exitCode} で失敗しました。\n`,
-    );
-  }
+  const unfilledDraftCount = state.descriptions.filter(
+    (description) => description.draft.title === null,
+  ).length;
+  process.stdout.write(
+    `${buildClaudeSubmitRequest(
+      state.repositoryName,
+      state.stack.layers.length,
+      unfilledDraftCount,
+    )}\n`,
+  );
 }
 
 interface CloseWorkspaceOptions {
@@ -154,7 +143,6 @@ async function runControlMode(
   const state = await readControlState(statePath);
   await removeStateFile(statePath);
   const run = dependencies.run ?? runCommand;
-  const runInteractive = dependencies.runInteractive ?? runInteractiveCommand;
   const waitForReviewEnd =
     dependencies.waitForReviewEnd ?? waitForEnterOrInterrupt;
   const promptYesNo = dependencies.promptYesNo ?? askYesNo;
@@ -185,13 +173,7 @@ async function runControlMode(
   );
   const saved = await saveReviewNotes(state.absoluteGitDir, markdown);
   process.stdout.write(`\n${markdown}\n保存先: ${saved.latestPath}\n`);
-  await reportReviewResult({
-    endReason,
-    notes,
-    promptYesNo,
-    repositoryRoot: state.repositoryRoot,
-    runInteractive,
-  });
+  reportReviewResult(state, notes.length, endReason);
   await closeWorkspace({
     promptYesNo,
     run,

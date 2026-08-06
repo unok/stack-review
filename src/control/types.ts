@@ -1,5 +1,5 @@
 import type { PreparedLayerDescription } from "../description.ts";
-import type { CommandRunner, runInteractiveCommand } from "../exec.ts";
+import type { CommandRunner } from "../exec.ts";
 import type { ReviewEnvironment } from "../herdr/index.ts";
 import type { Stack, WorkingTreeStatus } from "../types.ts";
 
@@ -31,7 +31,6 @@ export interface ControlScreenState {
 
 export interface ControlModeDependencies {
   run?: CommandRunner;
-  runInteractive?: typeof runInteractiveCommand;
   waitForReviewEnd?: () => Promise<ReviewEndReason>;
   promptYesNo?: (question: string, defaultValue: boolean) => Promise<boolean>;
 }

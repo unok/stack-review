@@ -20,8 +20,14 @@ import {
   prepareLayerDescriptions,
 } from "./repo.ts";
 import { quoteShellArgument } from "./shell.ts";
+import type { SubmitResult, SubmittedPullRequest } from "./submit/index.ts";
+import { submitStack } from "./submit/index.ts";
 
-const HELP = `Usage: stack-review [--control <state-file>]
+const HELP = `Usage: stack-review [submit]
+       stack-review --control <state-file>
+
+Commands:
+  submit                  draft を使ってスタックの PR を作成・更新する
 
 Options:
   --control <state-file>  control タブを開始する
@@ -30,6 +36,7 @@ Options:
 
 type CliArguments =
   | { mode: "default" }
+  | { mode: "submit" }
   | { mode: "control"; statePath: string }
   | { mode: "help" };
 
@@ -44,6 +51,9 @@ function parseArguments(argv: readonly string[]): CliArguments {
   ) {
     return { mode: "help" };
   }
+  if (argv.length === 1 && firstArgument === "submit") {
+    return { mode: "submit" };
+  }
   if (argv.length === 2 && firstArgument === "--control") {
     const statePath = secondArgument;
     if (statePath === undefined || statePath.length === 0) {
@@ -52,6 +62,45 @@ function parseArguments(argv: readonly string[]): CliArguments {
     return { mode: "control", statePath };
   }
   throw new TypeError(`不明な引数です: ${argv.join(" ")}`);
+}
+
+function formatPullRequestList(
+  pullRequests: readonly SubmittedPullRequest[],
+): string {
+  if (pullRequests.length === 0) {
+    return "  なし";
+  }
+  return pullRequests
+    .map(
+      (pullRequest) =>
+        `  ${pullRequest.layerName}: #${pullRequest.number} ${pullRequest.url}`,
+    )
+    .join("\n");
+}
+
+function formatSubmitResult(result: SubmitResult): string {
+  if (result.kind === "unfilled") {
+    return [
+      "draft のタイトルが未記入です。submit を中止しました。",
+      ...result.layerNames.map((layerName) => `  ${layerName}`),
+    ].join("\n");
+  }
+  if (result.kind === "failed") {
+    const detail = result.failure.stderr.trim();
+    let suffix = "";
+    if (detail.length > 0) {
+      suffix = `: ${detail}`;
+    }
+    return [
+      `${result.failure.argv.join(" ")} が終了コード ${result.failure.exitCode} で失敗しました${suffix}`,
+      "完了済みの PR:",
+      formatPullRequestList(result.pullRequests),
+    ].join("\n");
+  }
+  return [
+    "作成・更新した PR:",
+    formatPullRequestList(result.pullRequests),
+  ].join("\n");
 }
 
 function buildControlCommand(
@@ -153,6 +202,15 @@ async function runDefaultMode(executablePath: string): Promise<void> {
   }
 }
 
+async function runSubmitMode(): Promise<void> {
+  const result = await submitStack(runCommand);
+  const message = formatSubmitResult(result);
+  if (result.kind !== "succeeded") {
+    throw new Error(message);
+  }
+  process.stdout.write(`${message}\n`);
+}
+
 async function main(
   argv: readonly string[] = process.argv.slice(2),
 ): Promise<void> {
@@ -163,6 +221,10 @@ async function main(
   }
   if (arguments_.mode === "control") {
     await runControlMode(resolve(arguments_.statePath));
+    return;
+  }
+  if (arguments_.mode === "submit") {
+    await runSubmitMode();
     return;
   }
 
@@ -189,4 +251,4 @@ if (
   });
 }
 
-export { buildControlCommand, main };
+export { buildControlCommand, formatSubmitResult, main };

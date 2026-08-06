@@ -11,6 +11,7 @@ export {
   buildControlScreenState,
   reviewSessionSnapshotName,
 } from "./screen.ts";
+export { buildClaudeSubmitRequest } from "./submit-request.ts";
 export { askYesNo, waitForEnterOrInterrupt } from "./terminal.ts";
 export type {
   ControlLayerStatus,

@@ -126,11 +126,21 @@ describe("parsePullRequestViewResult", () => {
     it("parses an existing pull request", () => {
       expect(
         parsePullRequestViewResult({
-          stdout: JSON.stringify({ number: 42, title: "Title", body: "Body" }),
+          stdout: JSON.stringify({
+            number: 42,
+            title: "Title",
+            body: "Body",
+            url: "https://github.com/acme/repo/pull/42",
+          }),
           stderr: "",
           exitCode: 0,
         }),
-      ).toEqual({ number: 42, title: "Title", body: "Body" });
+      ).toEqual({
+        number: 42,
+        title: "Title",
+        body: "Body",
+        url: "https://github.com/acme/repo/pull/42",
+      });
     });
 
     it("returns null for gh's no-pull-request failure", () => {
@@ -180,7 +190,7 @@ describe("fetch pull request description", () => {
         "view",
         "refactor/foo",
         "--json",
-        "number,title,body",
+        "number,title,body,url",
       ]);
     });
   });
@@ -194,6 +204,7 @@ describe("formatDescriptionBaseline", () => {
           number: 42,
           title: "Existing title",
           body: "Existing body\n",
+          url: "https://github.com/acme/repo/pull/42",
         }),
       ).toBe("# Existing title\nExisting body\n");
     });
