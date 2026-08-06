@@ -23,6 +23,7 @@
         "useQwikValidLexicalScope": "off"
       },
       "performance": {
+        "noAwaitInLoops": "off",
         "noBarrelFile": "off"
       }
     }
