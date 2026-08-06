@@ -16,11 +16,19 @@ export interface Stack {
   layers: Layer[];
 }
 
+export interface HunkSession {
+  sessionId: string;
+  repoRoot: string;
+  title: string;
+  fileCount: number;
+}
+
 export interface ReviewNote {
   filePath: string;
   line: number;
   body: string;
   layerName: string;
+  side: "new" | "old";
 }
 
 export interface WorkingTreeStatus {
