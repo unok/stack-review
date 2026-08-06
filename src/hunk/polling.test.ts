@@ -78,3 +78,62 @@ describe("startReviewNotePolling", () => {
     });
   });
 });
+
+describe("startReviewNotePolling", () => {
+  describe("success", () => {
+    it("stores notes under snapshotName while fetching with layerName", async () => {
+      const run = vi.fn<CommandRunner>().mockResolvedValue({
+        stdout: JSON.stringify({
+          comments: [
+            {
+              filePath: "description.md",
+              newRange: [1, 1],
+              body: "description note",
+            },
+          ],
+        }),
+        stderr: "",
+        exitCode: 0,
+      });
+      const store = new ReviewNoteStore();
+      const poller = startReviewNotePolling(
+        [
+          {
+            layerName: "core",
+            sessionId: "session-1",
+            snapshotName: "core:description",
+          },
+        ],
+        store,
+        run,
+      );
+
+      await poller.pollNow();
+
+      expect(run).toHaveBeenCalledWith([
+        "hunk",
+        "session",
+        "comment",
+        "list",
+        "session-1",
+        "--type",
+        "user",
+        "--json",
+      ]);
+      expect(store.get("core:description")).toEqual({
+        sessionAlive: true,
+        notes: [
+          {
+            filePath: "description.md",
+            line: 1,
+            body: "description note",
+            layerName: "core",
+            side: "new",
+          },
+        ],
+      });
+      expect(store.get("core")).toBeUndefined();
+      poller.stop();
+    });
+  });
+});

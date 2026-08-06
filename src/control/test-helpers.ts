@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import type { ControlScreenState, ControlState } from "./types.ts";
 
 export function controlState(absoluteGitDir: string): ControlState {
@@ -22,6 +24,21 @@ export function controlState(absoluteGitDir: string): ControlState {
       ],
     },
     workingTreeStatus: { hasChanges: false, changeCount: 0 },
+    descriptions: [
+      {
+        layerName: "auth-layer",
+        draftPath: join(
+          absoluteGitDir,
+          "stack-review/descriptions/auth-layer.md",
+        ),
+        baselinePath: join(
+          absoluteGitDir,
+          "stack-review/baseline/auth-layer.md",
+        ),
+        draft: { title: null, body: "" },
+        pullRequest: null,
+      },
+    ],
     environment: {
       workspaceId: "workspace-1",
       controlTabId: "tab-1",
@@ -33,6 +50,9 @@ export function controlState(absoluteGitDir: string): ControlState {
           tabId: "tab-2",
           paneId: "pane-2",
           sessionId: "session-1",
+          descriptionTabId: "tab-3",
+          descriptionPaneId: "pane-3",
+          descriptionSessionId: "session-2",
         },
       ],
     },
@@ -57,6 +77,7 @@ export function screenState(hasChanges = false): ControlScreenState {
         fileCount: 2,
         noteCount: 1,
         sessionAlive: true,
+        descriptionFilled: true,
       },
       {
         layerNumber: 2,
@@ -64,6 +85,7 @@ export function screenState(hasChanges = false): ControlScreenState {
         fileCount: 5,
         noteCount: 0,
         sessionAlive: true,
+        descriptionFilled: false,
       },
       {
         layerNumber: 3,
@@ -71,6 +93,7 @@ export function screenState(hasChanges = false): ControlScreenState {
         fileCount: 3,
         noteCount: 2,
         sessionAlive: false,
+        descriptionFilled: true,
       },
     ],
   };

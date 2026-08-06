@@ -17,3 +17,10 @@ export function buildLayerTabLabel(
   }
   return `${layerNumber} ${branchName}`;
 }
+
+export function buildLayerDescriptionTabLabel(
+  layerNumber: number,
+  branchName: string,
+): string {
+  return `${buildLayerTabLabel(layerNumber, branchName)} desc`;
+}

@@ -1,4 +1,17 @@
-import { repositoryRoot } from "./test-helpers.ts";
+import { descriptions, layers, repositoryRoot } from "./test-helpers.ts";
+
+const TAB_CREATE_PREFIX = [
+  "herdr",
+  "tab",
+  "create",
+  "--workspace",
+  "wB",
+  "--cwd",
+  repositoryRoot,
+  "--no-focus",
+  "--label",
+];
+const LIST_SESSIONS_COMMAND = ["hunk", "session", "list", "--json"];
 
 export const expectedCreateEnvironmentCommands: string[][] = [
   [
@@ -12,51 +25,41 @@ export const expectedCreateEnvironmentCommands: string[][] = [
     "review: stack-review",
   ],
   ["herdr", "tab", "rename", "wB:t1", "control"],
-  [
-    "herdr",
-    "tab",
-    "create",
-    "--workspace",
-    "wB",
-    "--cwd",
-    repositoryRoot,
-    "--no-focus",
-    "--label",
-    "1 core",
-  ],
-  [
-    "herdr",
-    "tab",
-    "create",
-    "--workspace",
-    "wB",
-    "--cwd",
-    repositoryRoot,
-    "--no-focus",
-    "--label",
-    "2 hunk-session",
-  ],
-  [
-    "herdr",
-    "tab",
-    "create",
-    "--workspace",
-    "wB",
-    "--cwd",
-    repositoryRoot,
-    "--no-focus",
-    "--label",
-    "3 herdr-layout",
-  ],
-  ["hunk", "session", "list", "--json"],
-  ["herdr", "pane", "run", "wB:p2", "hunk diff trunk-commit..core"],
-  ["hunk", "session", "list", "--json"],
-  ["hunk", "session", "list", "--json"],
-  ["herdr", "pane", "run", "wB:p3", "hunk diff core-commit..hunk-session"],
-  ["hunk", "session", "list", "--json"],
-  ["hunk", "session", "list", "--json"],
-  ["herdr", "pane", "run", "wB:p4", "hunk diff hunk-commit..herdr-layout"],
-  ["hunk", "session", "list", "--json"],
+  ...layers.flatMap((layer, index) => {
+    const layerNumber = index + 1;
+    return [
+      [...TAB_CREATE_PREFIX, `${layerNumber} ${layer.name} desc`],
+      [...TAB_CREATE_PREFIX, `${layerNumber} ${layer.name}`],
+    ];
+  }),
+  ...layers.flatMap((layer, index) => {
+    const description = descriptions[index];
+    if (description === undefined) {
+      throw new TypeError(`description for layer "${layer.name}" is missing`);
+    }
+    const descriptionPaneNumber = index * 2 + 2;
+    const diffPaneNumber = descriptionPaneNumber + 1;
+    return [
+      LIST_SESSIONS_COMMAND,
+      [
+        "herdr",
+        "pane",
+        "run",
+        `wB:p${descriptionPaneNumber}`,
+        `hunk diff ${description.baselinePath} ${description.draftPath}`,
+      ],
+      LIST_SESSIONS_COMMAND,
+      LIST_SESSIONS_COMMAND,
+      [
+        "herdr",
+        "pane",
+        "run",
+        `wB:p${diffPaneNumber}`,
+        `hunk diff ${layer.base}..${layer.name}`,
+      ],
+      LIST_SESSIONS_COMMAND,
+    ];
+  }),
   ["herdr", "workspace", "focus", "wB"],
   ["herdr", "tab", "focus", "wB:t1"],
 ];

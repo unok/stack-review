@@ -1,3 +1,9 @@
+import type { PreparedLayerDescription } from "./description.ts";
+import {
+  fetchPullRequestDescription,
+  readOrCreateDescriptionDraft,
+  writeDescriptionBaseline,
+} from "./description.ts";
 import type { CommandRunner } from "./exec.ts";
 import {
   layerRevisionRange,
@@ -99,10 +105,38 @@ async function getWorkingTreeStatus(
   return parsePorcelainStatus(output);
 }
 
+function prepareLayerDescriptions(
+  run: CommandRunner,
+  absoluteGitDir: string,
+  layers: readonly Layer[],
+): Promise<PreparedLayerDescription[]> {
+  return Promise.all(
+    layers.map(async (layer) => {
+      const [{ path: draftPath, draft }, pullRequest] = await Promise.all([
+        readOrCreateDescriptionDraft(absoluteGitDir, layer.name),
+        fetchPullRequestDescription(run, layer.name),
+      ]);
+      const baselinePath = await writeDescriptionBaseline(
+        absoluteGitDir,
+        layer.name,
+        pullRequest,
+      );
+      return {
+        layerName: layer.name,
+        draftPath,
+        baselinePath,
+        draft,
+        pullRequest,
+      };
+    }),
+  );
+}
+
 export type { RepositoryPaths };
 export {
   getRepositoryPaths,
   getStackView,
   getWorkingTreeStatus,
   populateLayerStats,
+  prepareLayerDescriptions,
 };

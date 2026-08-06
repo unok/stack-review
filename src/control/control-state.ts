@@ -65,8 +65,39 @@ function isReviewEnvironment(value: unknown): boolean {
         isNonEmptyString(layer.layerName) &&
         isNonEmptyString(layer.tabId) &&
         isNonEmptyString(layer.paneId) &&
-        isNonEmptyString(layer.sessionId),
+        isNonEmptyString(layer.sessionId) &&
+        isNonEmptyString(layer.descriptionTabId) &&
+        isNonEmptyString(layer.descriptionPaneId) &&
+        isNonEmptyString(layer.descriptionSessionId),
     )
+  );
+}
+
+function isDescriptionDraft(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    (value.title === null || typeof value.title === "string") &&
+    typeof value.body === "string"
+  );
+}
+
+function isPullRequestDescription(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isPositiveInteger(value.number) &&
+    isNonEmptyString(value.title) &&
+    typeof value.body === "string"
+  );
+}
+
+function isPreparedLayerDescription(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    isNonEmptyString(value.layerName) &&
+    isNonEmptyString(value.draftPath) &&
+    isNonEmptyString(value.baselinePath) &&
+    isDescriptionDraft(value.draft) &&
+    (value.pullRequest === null || isPullRequestDescription(value.pullRequest))
   );
 }
 
@@ -79,6 +110,8 @@ function isControlState(value: unknown): value is ControlState {
     isNonEmptyString(value.repositoryName) &&
     isStack(value.stack) &&
     isWorkingTreeStatus(value.workingTreeStatus) &&
+    Array.isArray(value.descriptions) &&
+    value.descriptions.every(isPreparedLayerDescription) &&
     isReviewEnvironment(value.environment)
   );
 }

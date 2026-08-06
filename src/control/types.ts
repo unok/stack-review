@@ -1,3 +1,4 @@
+import type { PreparedLayerDescription } from "../description.ts";
 import type { CommandRunner, runInteractiveCommand } from "../exec.ts";
 import type { ReviewEnvironment } from "../herdr/index.ts";
 import type { Stack, WorkingTreeStatus } from "../types.ts";
@@ -9,6 +10,7 @@ export interface ControlState {
   repositoryName: string;
   stack: Stack;
   workingTreeStatus: WorkingTreeStatus;
+  descriptions: PreparedLayerDescription[];
   environment: ReviewEnvironment;
 }
 
@@ -18,6 +20,7 @@ export interface ControlLayerStatus {
   fileCount: number;
   noteCount: number;
   sessionAlive: boolean;
+  descriptionFilled: boolean;
 }
 
 export interface ControlScreenState {
@@ -34,3 +37,5 @@ export interface ControlModeDependencies {
 }
 
 export type ReviewEndReason = "completed" | "interrupted";
+
+export type ReviewSessionKind = "diff" | "description";

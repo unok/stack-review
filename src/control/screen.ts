@@ -1,6 +1,12 @@
+import { hasDescriptionContent } from "../description.ts";
 import type { ReviewNoteStore } from "../hunk/index.ts";
-import type { ControlScreenState, ControlState } from "./types.ts";
+import type {
+  ControlScreenState,
+  ControlState,
+  ReviewSessionKind,
+} from "./types.ts";
 
+const HUNK_STATUS_WIDTH = 9;
 const REVIEW_COMPLETION_PROMPT = "  全部見終えたら Enter → _";
 
 export function buildControlScreen(state: ControlScreenState): string {
@@ -33,15 +39,19 @@ export function buildControlScreen(state: ControlScreenState): string {
   }
 
   lines.push(
-    `  ${"#".padStart(numberWidth)}  ${"branch".padEnd(branchWidth)}  ${"files".padStart(filesWidth)}  ${"TODO".padStart(todoWidth)}  hunk`,
+    `  ${"#".padStart(numberWidth)}  ${"branch".padEnd(branchWidth)}  ${"files".padStart(filesWidth)}  ${"TODO".padStart(todoWidth)}  hunk      desc`,
   );
   for (const layer of state.layers) {
     let hunk = "○ closed";
     if (layer.sessionAlive) {
       hunk = "● live";
     }
+    let descriptionStatus = "空";
+    if (layer.descriptionFilled) {
+      descriptionStatus = "書済";
+    }
     lines.push(
-      `  ${String(layer.layerNumber).padStart(numberWidth)}  ${layer.layerName.padEnd(branchWidth)}  ${String(layer.fileCount).padStart(filesWidth)}  ${String(layer.noteCount).padStart(todoWidth)}  ${hunk}`,
+      `  ${String(layer.layerNumber).padStart(numberWidth)}  ${layer.layerName.padEnd(branchWidth)}  ${String(layer.fileCount).padStart(filesWidth)}  ${String(layer.noteCount).padStart(todoWidth)}  ${hunk.padEnd(HUNK_STATUS_WIDTH)} ${descriptionStatus}`,
     );
   }
   lines.push("", REVIEW_COMPLETION_PROMPT);
@@ -49,7 +59,14 @@ export function buildControlScreen(state: ControlScreenState): string {
   return lines.join("\n");
 }
 
-export function screenState(
+export function reviewSessionSnapshotName(
+  layerName: string,
+  kind: ReviewSessionKind,
+): string {
+  return `${layerName}:${kind}`;
+}
+
+export function buildControlScreenState(
   state: ControlState,
   store: ReviewNoteStore,
 ): ControlScreenState {
@@ -57,13 +74,27 @@ export function screenState(
     repositoryName: state.repositoryName,
     workingTreeStatus: state.workingTreeStatus,
     layers: state.stack.layers.map((layer, index) => {
-      const snapshot = store.get(layer.name);
+      const diffSnapshot = store.get(
+        reviewSessionSnapshotName(layer.name, "diff"),
+      );
+      const descriptionSnapshot = store.get(
+        reviewSessionSnapshotName(layer.name, "description"),
+      );
+      const description = state.descriptions[index];
+      if (description === undefined || description.layerName !== layer.name) {
+        throw new TypeError(
+          `description state for layer "${layer.name}" is missing or out of order`,
+        );
+      }
       return {
         layerNumber: index + 1,
         layerName: layer.name,
         fileCount: layer.stats?.fileCount ?? 0,
-        noteCount: snapshot?.notes.length ?? 0,
-        sessionAlive: snapshot?.sessionAlive ?? true,
+        noteCount:
+          (diffSnapshot?.notes.length ?? 0) +
+          (descriptionSnapshot?.notes.length ?? 0),
+        sessionAlive: diffSnapshot?.sessionAlive ?? true,
+        descriptionFilled: hasDescriptionContent(description.draft),
       };
     }),
   };

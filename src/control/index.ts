@@ -6,7 +6,11 @@ export {
   CONTROL_REFRESH_INTERVAL_MS,
   runControlMode,
 } from "./run-control-mode.ts";
-export { buildControlScreen } from "./screen.ts";
+export {
+  buildControlScreen,
+  buildControlScreenState,
+  reviewSessionSnapshotName,
+} from "./screen.ts";
 export { askYesNo, waitForEnterOrInterrupt } from "./terminal.ts";
 export type {
   ControlLayerStatus,
@@ -14,4 +18,5 @@ export type {
   ControlScreenState,
   ControlState,
   ReviewEndReason,
+  ReviewSessionKind,
 } from "./types.ts";

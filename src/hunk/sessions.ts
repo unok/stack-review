@@ -5,10 +5,11 @@ import {
   isRecord,
   parseJsonObject,
   requireNonNegativeInteger,
+  requireNullableString,
   requireString,
 } from "./helpers.ts";
 
-export function parseHunkSessions(output: string): HunkSession[] {
+function parseHunkSessions(output: string): HunkSession[] {
   const root = parseJsonObject(output, "hunk session list");
   const { sessions } = root;
   if (!Array.isArray(sessions)) {
@@ -22,26 +23,36 @@ export function parseHunkSessions(output: string): HunkSession[] {
     }
     return {
       sessionId: requireString(session, "sessionId", context),
-      repoRoot: requireString(session, "repoRoot", context),
+      repoRoot: requireNullableString(session, "repoRoot", context),
+      cwd: requireString(session, "cwd", context),
       title: requireString(session, "title", context),
       fileCount: requireNonNegativeInteger(session, "fileCount", context),
     };
   });
 }
 
-export function findNewHunkSession(
+function isSessionForRepository(
+  session: HunkSession,
+  repoRoot: string,
+): boolean {
+  // file compare セッションには repoRoot がないため、タブ作成時の cwd を使う。
+  return (session.repoRoot ?? session.cwd) === repoRoot;
+}
+
+function findNewHunkSession(
   before: readonly HunkSession[],
   after: readonly HunkSession[],
   repoRoot: string,
 ): HunkSession | null {
   const existingIds = new Set(
     before
-      .filter((session) => session.repoRoot === repoRoot)
+      .filter((session) => isSessionForRepository(session, repoRoot))
       .map((session) => session.sessionId),
   );
   const added = after.filter(
     (session) =>
-      session.repoRoot === repoRoot && !existingIds.has(session.sessionId),
+      isSessionForRepository(session, repoRoot) &&
+      !existingIds.has(session.sessionId),
   );
   if (added.length === 0) {
     return null;
@@ -52,12 +63,12 @@ export function findNewHunkSession(
   return added[0] ?? null;
 }
 
-export async function listHunkSessions(
-  run: CommandRunner,
-): Promise<HunkSession[]> {
+async function listHunkSessions(run: CommandRunner): Promise<HunkSession[]> {
   const result = await run(["hunk", "session", "list", "--json"]);
   if (result.exitCode !== 0) {
     throw commandFailure("hunk session list", result.stderr, result.exitCode);
   }
   return parseHunkSessions(result.stdout);
 }
+
+export { findNewHunkSession, listHunkSessions, parseHunkSessions };

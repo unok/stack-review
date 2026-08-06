@@ -18,7 +18,8 @@ export interface Stack {
 
 export interface HunkSession {
   sessionId: string;
-  repoRoot: string;
+  repoRoot: string | null;
+  cwd: string;
   title: string;
   fileCount: number;
 }

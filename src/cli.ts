@@ -17,6 +17,7 @@ import {
   getStackView,
   getWorkingTreeStatus,
   populateLayerStats,
+  prepareLayerDescriptions,
 } from "./repo.ts";
 import { quoteShellArgument } from "./shell.ts";
 
@@ -116,12 +117,18 @@ async function runDefaultMode(executablePath: string): Promise<void> {
   }
   const layers = await populateLayerStats(runCommand, stackView.stack.layers);
   const stack = { ...stackView.stack, layers };
+  const descriptions = await prepareLayerDescriptions(
+    runCommand,
+    repository.absoluteGitDir,
+    layers,
+  );
   const repositoryName = basename(repository.topLevel);
   const environment = await createReviewEnvironment(
     runCommand,
     repository.topLevel,
     repositoryName,
     layers,
+    descriptions,
   );
 
   try {
@@ -132,6 +139,7 @@ async function runDefaultMode(executablePath: string): Promise<void> {
       repositoryName,
       stack,
       workingTreeStatus,
+      descriptions,
       environment,
     };
     await startControlTab(executablePath, state);

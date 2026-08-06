@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildLayerTabLabel, buildReviewWorkspaceLabel } from "./index.ts";
+import {
+  buildLayerDescriptionTabLabel,
+  buildLayerTabLabel,
+  buildReviewWorkspaceLabel,
+} from "./index.ts";
 
 const LAYER_NUMBER = 3;
 
@@ -15,6 +19,12 @@ describe("review environment labels", () => {
     it("labels a layer tab with its one-based number and branch name", () => {
       expect(buildLayerTabLabel(LAYER_NUMBER, "herdr-layout")).toBe(
         "3 herdr-layout",
+      );
+    });
+
+    it("adds desc to the matching layer-tab label", () => {
+      expect(buildLayerDescriptionTabLabel(LAYER_NUMBER, "herdr-layout")).toBe(
+        "3 herdr-layout desc",
       );
     });
   });

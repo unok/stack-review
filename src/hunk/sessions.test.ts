@@ -1,65 +1,72 @@
 import { describe, expect, it } from "vitest";
 
 import type { HunkSession } from "../types.ts";
-import { findNewHunkSession, parseHunkSessions } from "./index.ts";
+import { findNewHunkSession } from "./index.ts";
 
-function session(sessionId: string, repoRoot = "/repo"): HunkSession {
+function vcsSession(sessionId: string, repoRoot = "/repo"): HunkSession {
   return {
     sessionId,
     repoRoot,
+    cwd: repoRoot,
     title: `repo main...${sessionId}`,
     fileCount: 1,
   };
 }
 
-describe("parseHunkSessions", () => {
+function fileCompareSession(sessionId: string, cwd = "/repo"): HunkSession {
+  return {
+    sessionId,
+    repoRoot: null,
+    cwd,
+    title: "baseline.md ↔ draft.md",
+    fileCount: 1,
+  };
+}
+
+describe("findNewHunkSession", () => {
   describe("success", () => {
-    it("returns an empty array when there are no sessions", () => {
-      expect(parseHunkSessions('{"sessions":[]}')).toEqual([]);
+    it("captures a VCS session whose repoRoot matches", () => {
+      expect(
+        findNewHunkSession(
+          [vcsSession("existing")],
+          [vcsSession("existing"), vcsSession("new")],
+          "/repo",
+        ),
+      ).toEqual(vcsSession("new"));
     });
 
-    it("parses the fields used to identify a session", () => {
-      const output = JSON.stringify({
-        sessions: [
-          {
-            sessionId: "session-1",
-            repoRoot: "/repo",
-            title: "repo main...layer1",
-            fileCount: 2,
-            pid: 123,
-          },
-        ],
-      });
+    it("captures a file compare session whose cwd matches", () => {
+      expect(
+        findNewHunkSession(
+          [vcsSession("existing")],
+          [vcsSession("existing"), fileCompareSession("new")],
+          "/repo",
+        ),
+      ).toEqual(fileCompareSession("new"));
+    });
 
-      expect(parseHunkSessions(output)).toEqual([
-        {
-          sessionId: "session-1",
-          repoRoot: "/repo",
-          title: "repo main...layer1",
-          fileCount: 2,
-        },
-      ]);
+    it("ignores a file compare session whose cwd belongs to another project", () => {
+      expect(
+        findNewHunkSession(
+          [vcsSession("existing")],
+          [
+            vcsSession("existing"),
+            fileCompareSession("unrelated", "/other-repo"),
+          ],
+          "/repo",
+        ),
+      ).toBeNull();
     });
   });
 });
 
 describe("findNewHunkSession", () => {
   describe("success", () => {
-    it("identifies the one session added after launch", () => {
-      expect(
-        findNewHunkSession(
-          [session("existing")],
-          [session("existing"), session("new")],
-          "/repo",
-        ),
-      ).toEqual(session("new"));
-    });
-
     it("returns null when no session was added", () => {
       expect(
         findNewHunkSession(
-          [session("existing")],
-          [session("existing")],
+          [vcsSession("existing")],
+          [vcsSession("existing")],
           "/repo",
         ),
       ).toBeNull();
@@ -68,22 +75,28 @@ describe("findNewHunkSession", () => {
     it("ignores a session added at the same time in another repository", () => {
       expect(
         findNewHunkSession(
-          [session("existing")],
+          [vcsSession("existing")],
           [
-            session("existing"),
-            session("target", "/repo"),
-            session("unrelated", "/other-repo"),
+            vcsSession("existing"),
+            vcsSession("target", "/repo"),
+            vcsSession("unrelated", "/other-repo"),
           ],
           "/repo",
         ),
-      ).toEqual(session("target"));
+      ).toEqual(vcsSession("target"));
     });
   });
+});
 
+describe("findNewHunkSession", () => {
   describe("failure", () => {
     it("rejects an ambiguous launch that added multiple sessions", () => {
       expect(() =>
-        findNewHunkSession([], [session("new-1"), session("new-2")], "/repo"),
+        findNewHunkSession(
+          [],
+          [vcsSession("new-1"), vcsSession("new-2")],
+          "/repo",
+        ),
       ).toThrow("expected one new Hunk session, found 2");
     });
   });

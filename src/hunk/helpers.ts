@@ -33,6 +33,21 @@ export function requireString(
   return value;
 }
 
+export function requireNullableString(
+  record: Record<string, unknown>,
+  key: string,
+  context: string,
+): string | null {
+  const value = record[key];
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value !== "string" || value.length === 0) {
+    throw new TypeError(`${context}.${key} must be null or a non-empty string`);
+  }
+  return value;
+}
+
 export function requireNonNegativeInteger(
   record: Record<string, unknown>,
   key: string,

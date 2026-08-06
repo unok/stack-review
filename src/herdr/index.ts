@@ -1,6 +1,7 @@
 export { createReviewEnvironment } from "./create-environment.ts";
 export { destroyReviewEnvironment } from "./destroy-environment.ts";
 export {
+  buildLayerDescriptionTabLabel,
   buildLayerTabLabel,
   buildReviewWorkspaceLabel,
 } from "./labels.ts";

@@ -1,4 +1,9 @@
-export { buildHunkDiffArgv, buildHunkDiffCommand } from "./commands.ts";
+export {
+  buildHunkDiffArgv,
+  buildHunkDiffCommand,
+  buildHunkFileDiffArgv,
+  buildHunkFileDiffCommand,
+} from "./commands.ts";
 export {
   DEFAULT_POLL_INTERVAL_MS,
   type HunkSessionBinding,

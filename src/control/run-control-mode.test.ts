@@ -55,6 +55,9 @@ describe("runControlMode", () => {
       expect(promptYesNo).toHaveBeenCalledOnce();
       expect(promptYesNo).toHaveBeenCalledWith(CLOSE_WORKSPACE_PROMPT, true);
       expect(runInteractive).not.toHaveBeenCalled();
+      expect(
+        new Set(run.mock.calls.map(([argv]) => argv[4]).filter(Boolean)),
+      ).toEqual(new Set(["session-1", "session-2"]));
       await expect(readFile(statePath, "utf8")).rejects.toMatchObject({
         code: "ENOENT",
       });

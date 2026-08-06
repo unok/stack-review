@@ -10,7 +10,11 @@ import {
 import { formatReviewNotes, saveReviewNotes } from "../notes.ts";
 import type { ReviewNote } from "../types.ts";
 import { readControlState } from "./control-state.ts";
-import { drawControlScreen, screenState } from "./screen.ts";
+import {
+  buildControlScreenState,
+  drawControlScreen,
+  reviewSessionSnapshotName,
+} from "./screen.ts";
 import { askYesNo, waitForEnterOrInterrupt } from "./terminal.ts";
 import type {
   ControlModeDependencies,
@@ -36,10 +40,18 @@ async function removeStateFile(statePath: string): Promise<void> {
 }
 
 function sessionBindings(state: ControlState): HunkSessionBinding[] {
-  return state.environment.layers.map((layer) => ({
-    layerName: layer.layerName,
-    sessionId: layer.sessionId,
-  }));
+  return state.environment.layers.flatMap((layer) => [
+    {
+      layerName: layer.layerName,
+      sessionId: layer.sessionId,
+      snapshotName: reviewSessionSnapshotName(layer.layerName, "diff"),
+    },
+    {
+      layerName: layer.layerName,
+      sessionId: layer.descriptionSessionId,
+      snapshotName: reviewSessionSnapshotName(layer.layerName, "description"),
+    },
+  ]);
 }
 
 async function pollOnce(
@@ -71,9 +83,11 @@ function collectNotes(
   state: ControlState,
   store: ReviewNoteStore,
 ): ReviewNote[] {
-  return state.stack.layers.flatMap(
-    (layer) => store.get(layer.name)?.notes ?? [],
-  );
+  return state.stack.layers.flatMap((layer) => [
+    ...(store.get(reviewSessionSnapshotName(layer.name, "diff"))?.notes ?? []),
+    ...(store.get(reviewSessionSnapshotName(layer.name, "description"))
+      ?.notes ?? []),
+  ]);
 }
 
 interface ReportReviewResultOptions {
@@ -154,9 +168,9 @@ async function runControlMode(
   });
 
   await pollOnce(poller, recordPollingError);
-  drawControlScreen(screenState(state, store));
+  drawControlScreen(buildControlScreenState(state, store));
   const redrawTimer = globalThis.setInterval(() => {
-    drawControlScreen(screenState(state, store));
+    drawControlScreen(buildControlScreenState(state, store));
   }, CONTROL_REFRESH_INTERVAL_MS);
   const endReason = await waitForReviewEnd();
   globalThis.clearInterval(redrawTimer);

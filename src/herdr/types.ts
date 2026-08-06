@@ -15,6 +15,9 @@ export interface ReviewLayerEnvironment {
   tabId: string;
   paneId: string;
   sessionId: string;
+  descriptionTabId: string;
+  descriptionPaneId: string;
+  descriptionSessionId: string;
 }
 
 export interface ReviewEnvironment {

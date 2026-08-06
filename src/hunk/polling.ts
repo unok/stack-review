@@ -7,6 +7,7 @@ const DEFAULT_POLL_INTERVAL_MS = 2000;
 interface HunkSessionBinding {
   layerName: string;
   sessionId: string;
+  snapshotName?: string;
 }
 
 interface PollingTimer {
@@ -57,16 +58,16 @@ function startReviewNotePolling(
     }
 
     const current = Promise.all(
-      bindings.map(async ({ layerName, sessionId }) => ({
-        layerName,
+      bindings.map(async ({ layerName, sessionId, snapshotName }) => ({
+        snapshotName: snapshotName ?? layerName,
         result: await fetchReviewNotes(run, sessionId, layerName),
       })),
     ).then((updates) => {
       if (stopped) {
         return;
       }
-      for (const { layerName, result } of updates) {
-        store.update(layerName, result);
+      for (const { snapshotName, result } of updates) {
+        store.update(snapshotName, result);
       }
     });
     inFlight = current.finally(() => {

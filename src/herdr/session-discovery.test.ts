@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { PreparedLayerDescription } from "../description.ts";
 import type { CommandResult, CommandRunner } from "../exec.ts";
-import type { Layer } from "../types.ts";
+import type { HunkSession, Layer } from "../types.ts";
 import { createReviewEnvironment } from "./index.ts";
 import {
+  descriptions,
+  fileCompareHunkSession,
   hunkSession,
   isCommand,
   layers,
@@ -22,15 +25,32 @@ const EXPECTED_MISMATCH_LIST_COUNT = 4;
 const TIMEOUT_INTERVAL_MS = 200;
 const TIMEOUT_MS = 500;
 const FINAL_RETRY_DELAY_MS = 100;
+const FIRST_LAYER_TAB_NUMBER = 2;
+const DESCRIPTION_DISCOVERY_COUNT = 2;
+const CODE_LAUNCH_COUNT = 2;
 const CLOSE_WORKSPACE_COMMAND = ["herdr", "workspace", "close", "wB"];
 
-function createSessionRunner(listSessions: () => CommandResult): CommandRunner {
+interface SessionRunnerOptions {
+  listSessions: () => CommandResult;
+  onLaunch?: () => void;
+}
+
+function createSessionRunner({
+  listSessions,
+  onLaunch = () => undefined,
+}: SessionRunnerOptions): CommandRunner {
+  let nextTabNumber = FIRST_LAYER_TAB_NUMBER;
   return vi.fn<CommandRunner>((argv) => {
     if (isCommand(argv, "herdr", "workspace", "create")) {
       return Promise.resolve(success(workspaceCreateOutput()));
     }
     if (isCommand(argv, "herdr", "tab", "create")) {
-      return Promise.resolve(success(tabCreateOutput(2)));
+      const output = tabCreateOutput(nextTabNumber);
+      nextTabNumber += 1;
+      return Promise.resolve(success(output));
+    }
+    if (isCommand(argv, "herdr", "pane", "run")) {
+      onLaunch();
     }
     if (isCommand(argv, "hunk")) {
       return Promise.resolve(listSessions());
@@ -39,104 +59,128 @@ function createSessionRunner(listSessions: () => CommandResult): CommandRunner {
   });
 }
 
-function createDelayedSessionAttempt() {
-  const run = vi
-    .fn<CommandRunner>()
-    .mockResolvedValueOnce(success(workspaceCreateOutput()))
-    .mockResolvedValueOnce(success())
-    .mockResolvedValueOnce(success(tabCreateOutput(2)))
-    .mockResolvedValueOnce(sessionList([]))
-    .mockResolvedValueOnce(success())
-    .mockResolvedValueOnce(sessionList([]))
-    .mockResolvedValueOnce(sessionList([hunkSession("delayed")]))
-    .mockResolvedValueOnce(success())
-    .mockResolvedValueOnce(success());
-  const sleep = vi.fn(() => Promise.resolve());
-  const environment = createReviewEnvironment(
-    run,
-    repositoryRoot,
-    "stack-review",
-    [layers[0] as Layer],
-    {
-      sessionDiscoveryIntervalMs: DELAYED_INTERVAL_MS,
-      sessionDiscoveryTimeoutMs: DELAYED_TIMEOUT_MS,
-      timer: { sleep },
-    },
-  );
-  return { environment, sleep };
+interface EnvironmentAttemptOptions {
+  run: CommandRunner;
+  root: string;
+  intervalMs: number;
+  timeoutMs: number;
+  sleep: (delayMs: number) => Promise<void>;
 }
 
-function createMismatchedSessionAttempt() {
-  const subdirectory = `${repositoryRoot}/src`;
-  const state = { sessionListCount: 0 };
-  const run = createSessionRunner(() => {
-    state.sessionListCount += 1;
-    if (state.sessionListCount === 1) {
-      return sessionList([]);
-    }
-    return sessionList([hunkSession("at-git-root", repositoryRoot)]);
-  });
-  const sleep = vi.fn(() => Promise.resolve());
-  const environment = createReviewEnvironment(
+function createEnvironmentAttempt({
+  run,
+  root,
+  intervalMs,
+  timeoutMs,
+  sleep,
+}: EnvironmentAttemptOptions) {
+  return createReviewEnvironment(
     run,
-    subdirectory,
+    root,
     "stack-review",
     [layers[0] as Layer],
+    [descriptions[0] as PreparedLayerDescription],
     {
-      sessionDiscoveryIntervalMs: MISMATCH_INTERVAL_MS,
-      sessionDiscoveryTimeoutMs: MISMATCH_TIMEOUT_MS,
+      sessionDiscoveryIntervalMs: intervalMs,
+      sessionDiscoveryTimeoutMs: timeoutMs,
       timer: { sleep },
     },
   );
-  return { environment, run, state };
-}
-
-function createTimedOutSessionAttempt() {
-  const run = createSessionRunner(() => sessionList([]));
-  const sleep = vi.fn(() => Promise.resolve());
-  const environment = createReviewEnvironment(
-    run,
-    repositoryRoot,
-    "stack-review",
-    [layers[0] as Layer],
-    {
-      sessionDiscoveryIntervalMs: TIMEOUT_INTERVAL_MS,
-      sessionDiscoveryTimeoutMs: TIMEOUT_MS,
-      timer: { sleep },
-    },
-  );
-  return { environment, run, sleep };
 }
 
 describe("createReviewEnvironment", () => {
   describe("success", () => {
     it("retries until a delayed Hunk session appears", async () => {
-      const { environment, sleep } = createDelayedSessionAttempt();
+      let launchedCount = 0;
+      let descriptionDiscoveryCount = 0;
+      const startedSessions: HunkSession[] = [];
+      const run = createSessionRunner({
+        listSessions: () => {
+          if (launchedCount === 1 && startedSessions.length === 0) {
+            descriptionDiscoveryCount += 1;
+            if (descriptionDiscoveryCount === DESCRIPTION_DISCOVERY_COUNT) {
+              startedSessions.push(fileCompareHunkSession("delayed"));
+            }
+          }
+          return sessionList(startedSessions);
+        },
+        onLaunch: () => {
+          launchedCount += 1;
+          if (launchedCount === CODE_LAUNCH_COUNT) {
+            startedSessions.push(hunkSession("code"));
+          }
+        },
+      });
+      const sleep = vi.fn(() => Promise.resolve());
 
-      await expect(environment).resolves.toMatchObject({
-        layers: [{ sessionId: "delayed" }],
+      await expect(
+        createEnvironmentAttempt({
+          run,
+          root: repositoryRoot,
+          intervalMs: DELAYED_INTERVAL_MS,
+          timeoutMs: DELAYED_TIMEOUT_MS,
+          sleep,
+        }),
+      ).resolves.toMatchObject({
+        layers: [{ descriptionSessionId: "delayed", sessionId: "code" }],
       });
       expect(sleep).toHaveBeenCalledOnce();
       expect(sleep).toHaveBeenCalledWith(DELAYED_INTERVAL_MS);
     });
   });
+});
 
+describe("createReviewEnvironment", () => {
   describe("failure", () => {
     it("does not capture a session whose repoRoot differs from repositoryRoot", async () => {
-      const { environment, run, state } = createMismatchedSessionAttempt();
+      const subdirectory = `${repositoryRoot}/src`;
+      const state = { sessionListCount: 0 };
+      const run = createSessionRunner({
+        listSessions: () => {
+          state.sessionListCount += 1;
+          if (state.sessionListCount === 1) {
+            return sessionList([]);
+          }
+          return sessionList([hunkSession("at-git-root", repositoryRoot)]);
+        },
+      });
+      const sleep = vi.fn(() => Promise.resolve());
 
-      await expect(environment).rejects.toThrow(
-        `Hunk session for layer "core" did not appear within ${MISMATCH_TIMEOUT_MS} ms`,
+      await expect(
+        createEnvironmentAttempt({
+          run,
+          root: subdirectory,
+          intervalMs: MISMATCH_INTERVAL_MS,
+          timeoutMs: MISMATCH_TIMEOUT_MS,
+          sleep,
+        }),
+      ).rejects.toThrow(
+        `Hunk session for layer "core desc" did not appear within ${MISMATCH_TIMEOUT_MS} ms`,
       );
       expect(state.sessionListCount).toBe(EXPECTED_MISMATCH_LIST_COUNT);
       expect(run).toHaveBeenLastCalledWith(CLOSE_WORKSPACE_COMMAND);
     });
+  });
+});
 
+describe("createReviewEnvironment", () => {
+  describe("failure", () => {
     it("closes the partial workspace when session discovery times out", async () => {
-      const { environment, run, sleep } = createTimedOutSessionAttempt();
+      const run = createSessionRunner({
+        listSessions: () => sessionList([]),
+      });
+      const sleep = vi.fn(() => Promise.resolve());
 
-      await expect(environment).rejects.toThrow(
-        `Hunk session for layer "core" did not appear within ${TIMEOUT_MS} ms`,
+      await expect(
+        createEnvironmentAttempt({
+          run,
+          root: repositoryRoot,
+          intervalMs: TIMEOUT_INTERVAL_MS,
+          timeoutMs: TIMEOUT_MS,
+          sleep,
+        }),
+      ).rejects.toThrow(
+        `Hunk session for layer "core desc" did not appear within ${TIMEOUT_MS} ms`,
       );
       expect(sleep.mock.calls).toEqual([
         [TIMEOUT_INTERVAL_MS],

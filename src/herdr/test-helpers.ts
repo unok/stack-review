@@ -1,3 +1,4 @@
+import type { PreparedLayerDescription } from "../description.ts";
 import type { CommandResult } from "../exec.ts";
 import type { HunkSession, Layer } from "../types.ts";
 
@@ -17,6 +18,14 @@ export const layers: Layer[] = [
   { name: "hunk-session", base: "core-commit", stats: null },
   { name: "herdr-layout", base: "hunk-commit", stats: null },
 ];
+
+export const descriptions: PreparedLayerDescription[] = layers.map((layer) => ({
+  layerName: layer.name,
+  draftPath: `/repo/.git/stack-review/descriptions/${layer.name}.md`,
+  baselinePath: `/repo/.git/stack-review/baseline/${layer.name}.md`,
+  draft: { title: null, body: "" },
+  pullRequest: null,
+}));
 
 export function success(stdout = ""): CommandResult {
   return { stdout, stderr: "", exitCode: 0 };
@@ -91,7 +100,21 @@ export function hunkSession(
   return {
     sessionId,
     repoRoot,
+    cwd: repoRoot,
     title: `stack-review ${sessionId}`,
+    fileCount: 1,
+  };
+}
+
+export function fileCompareHunkSession(
+  sessionId: string,
+  cwd = repositoryRoot,
+): HunkSession {
+  return {
+    sessionId,
+    repoRoot: null,
+    cwd,
+    title: "core.md ↔ core.md",
     fileCount: 1,
   };
 }
