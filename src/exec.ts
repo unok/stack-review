@@ -1,4 +1,7 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+
+const COMMAND_NOT_FOUND_EXIT_CODE = 127;
+const SPAWN_ERROR_EXIT_CODE = 1;
 
 export interface CommandResult {
   stdout: string;
@@ -7,6 +10,10 @@ export interface CommandResult {
 }
 
 export type CommandRunner = (argv: string[]) => Promise<CommandResult>;
+
+export interface InteractiveCommandOptions {
+  cwd?: string;
+}
 
 export const runCommand: CommandRunner = (argv) => {
   const [command, ...args] = argv;
@@ -35,3 +42,39 @@ export const runCommand: CommandRunner = (argv) => {
     });
   });
 };
+
+export function runInteractiveCommand(
+  argv: string[],
+  options: InteractiveCommandOptions = {},
+): Promise<number> {
+  const [command, ...args] = argv;
+  if (command === undefined) {
+    return Promise.reject(new TypeError("command argv must not be empty"));
+  }
+
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      stdio: "inherit",
+    });
+    let settled = false;
+
+    child.once("error", (error) => {
+      if (!settled) {
+        settled = true;
+        process.stderr.write(`${error.message}\n`);
+        if ("code" in error && error.code === "ENOENT") {
+          resolve(COMMAND_NOT_FOUND_EXIT_CODE);
+          return;
+        }
+        resolve(SPAWN_ERROR_EXIT_CODE);
+      }
+    });
+    child.once("close", (exitCode) => {
+      if (!settled) {
+        settled = true;
+        resolve(exitCode ?? -1);
+      }
+    });
+  });
+}

@@ -1,5 +1,3 @@
-const SHELL_SAFE_ARGUMENT = /^[A-Za-z0-9_@%+=:,./-]+$/;
-
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -83,11 +81,4 @@ export function commandFailure(
     suffix = `: ${detail}`;
   }
   return new Error(`${command} exited with code ${exitCode}${suffix}`);
-}
-
-export function quoteShellArgument(argument: string): string {
-  if (SHELL_SAFE_ARGUMENT.test(argument)) {
-    return argument;
-  }
-  return `'${argument.replaceAll("'", `'"'"'`)}'`;
 }

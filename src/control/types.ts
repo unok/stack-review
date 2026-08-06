@@ -1,0 +1,36 @@
+import type { CommandRunner, runInteractiveCommand } from "../exec.ts";
+import type { ReviewEnvironment } from "../herdr/index.ts";
+import type { Stack, WorkingTreeStatus } from "../types.ts";
+
+export interface ControlState {
+  version: 1;
+  repositoryRoot: string;
+  absoluteGitDir: string;
+  repositoryName: string;
+  stack: Stack;
+  workingTreeStatus: WorkingTreeStatus;
+  environment: ReviewEnvironment;
+}
+
+export interface ControlLayerStatus {
+  layerNumber: number;
+  layerName: string;
+  fileCount: number;
+  noteCount: number;
+  sessionAlive: boolean;
+}
+
+export interface ControlScreenState {
+  repositoryName: string;
+  layers: readonly ControlLayerStatus[];
+  workingTreeStatus: WorkingTreeStatus;
+}
+
+export interface ControlModeDependencies {
+  run?: CommandRunner;
+  runInteractive?: typeof runInteractiveCommand;
+  waitForReviewEnd?: () => Promise<ReviewEndReason>;
+  promptYesNo?: (question: string, defaultValue: boolean) => Promise<boolean>;
+}
+
+export type ReviewEndReason = "completed" | "interrupted";

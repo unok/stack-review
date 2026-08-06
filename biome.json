@@ -25,6 +25,14 @@
       "performance": {
         "noAwaitInLoops": "off",
         "noBarrelFile": "off"
+      },
+      "security": {
+        "noSecrets": {
+          "level": "error",
+          "options": {
+            "entropyThreshold": 50
+          }
+        }
       }
     }
   },

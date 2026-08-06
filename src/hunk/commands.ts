@@ -1,4 +1,4 @@
-import { quoteShellArgument } from "./helpers.ts";
+import { quoteShellArgument } from "../shell.ts";
 
 export function buildHunkDiffArgv(range: string): string[] {
   if (range.length === 0) {

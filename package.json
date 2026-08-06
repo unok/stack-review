@@ -3,6 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "bin": {
+    "stack-review": "./src/cli.ts"
+  },
   "scripts": {
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
