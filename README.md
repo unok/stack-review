@@ -6,7 +6,7 @@
 
 ```
 workspace: review: myrepo   ← 新規作成。既存のワークスペースには触れない
-┌[control][1 auth][1 auth desc][2 api][2 api desc]┐
+┌[control][1 auth desc][1 auth][2 api desc][2 api]┐
 │ review: myrepo   2 layers                       │
 │                                                 │
 │   #  branch  files  TODO  hunk      desc        │
@@ -25,6 +25,8 @@ workspace: review: myrepo   ← 新規作成。既存のワークスペースに
 | [hunk](https://www.npmjs.com/package/hunk) 0.17 以上 | 差分表示と `session` API |
 | [gh](https://cli.github.com/) + [gh-stack](https://github.com/github/gh-stack) | スタック構成の取得、push、PR の作成と更新 |
 | Node.js 22.18 以上 | `.ts` の直接実行（型ストリップ） |
+
+gh は認証済みであること。起動時と submit 時に、各レイヤーの既存 PR を `gh pr view` で参照する。
 
 ビルド工程は無い。`src/cli.ts` を Node がそのまま実行する。型ストリップが既定で有効になった Node 22.18 未満では動かないため、`package.json` の `engines` でも宣言している。
 
@@ -53,7 +55,7 @@ stack-review
 
 コマンドはレビュー環境を組み立てたら終了するので、起動したペインはすぐ解放される。以降は control タブが受け持つ。
 
-各レイヤーにはコード差分のタブと、名前の末尾が `desc` の本文タブがある。本文タブには既存 PR の description と draft の差分が開く。コードだけでなく、タイトルと本文もプリフライトレビューの対象になる。
+各レイヤーには名前の末尾が `desc` の本文タブと、コード差分のタブがこの順で並ぶ。本文タブには既存 PR の description と draft の差分が開く。コードだけでなく、タイトルと本文もプリフライトレビューの対象になる。
 
 直したい箇所には hunk の上でコメントを付ける。コード差分と本文のコメントは control タブの TODO 件数に合算される。全部見終えたら control タブで Enter を押す。
 
@@ -61,9 +63,9 @@ Enter を押すと、付けたコメントが Markdown にまとまって表示�
 
 コメントが 0 件なら、Claude に渡す依頼文が表示される。draft が未記入なら、先に draft を書く依頼文になる。コメントが 1 件でもあれば依頼文は出ない。修正してからもう一度レビューする。
 
-最後にレビュー用ワークスペースを閉じるか聞かれる。既定は閉じる。
+最後にレビューワークスペースを閉じるか聞かれる。既定は閉じる。
 
-途中で Ctrl-C を押しても、それまでに付けたコメントは保存される。この場合 submit は聞かれない。
+途中で Ctrl-C を押しても、それまでに付けたコメントは保存される。submit の依頼文は出ないが、ワークスペースを閉じるかは聞かれる。
 
 ## PR description の draft
 
@@ -75,7 +77,7 @@ draft は次の場所に置く。`<absolute-git-dir>` は `git rev-parse --absol
 
 ファイル名は JavaScript の `encodeURIComponent` でエンコードする。たとえば `refactor/foo` の draft は `refactor%2Ffoo.md` になる。
 
-1 行目の `# ` 見出しが PR タイトルで、2 行目以降が PR 本文になる。本文は空でもよいが、submit 前に全レイヤーのタイトルが必要になる。
+1 行目の `# ` 見出しが PR タイトルで、2 行目以降が PR 本文になる。本文は空でもよいが、submit 前に全レイヤーのタイトルが必要になる。1 行目が `# `（`#` とスペース）で始まらないファイルはエラーになる。
 
 ```markdown
 # セッション期限切れを処理する
@@ -83,7 +85,7 @@ draft は次の場所に置く。`<absolute-git-dir>` は `git rev-parse --absol
 認証トークンの期限切れを明示的に扱う。
 ```
 
-`stack-review` を先に起動すると、存在しない draft は `# ` だけのテンプレートとして作られる。先にファイルを用意してもよい。
+`stack-review` を先に起動すると、存在しない draft は `# ` だけのテンプレートとして作られる。先にファイルを用意してもよい。起動後に書いた draft は control タブの表示に反映されないが、submit は常に最新の内容を読む。
 
 ## Submit
 
@@ -93,7 +95,7 @@ control タブに依頼文が出たら、その一行を Claude に渡す。Clau
 stack-review submit
 ```
 
-このコマンドは全 draft のタイトルを検査してから全ブランチを push し、下のレイヤーから PR を作成または更新する。新規 PR は draft 状態で作り、最後に全ブランチを `gh stack link` でスタック化する。途中で失敗した場合はそこで止まり、完了済みの PR を表示する。
+このコマンドは全 draft のタイトルを検査し、`gh stack push` でブランチを push してから、下のレイヤーから PR を作成または更新する。既存 PR はブランチ名の `gh pr view` で探す。新規 PR は draft 状態で作り、最後に全ブランチを `gh stack link` でスタック化する。途中で失敗した場合はそこで止まり、完了済みの PR を表示する。
 
 `gh stack submit` は PR 本文を渡せないため直接実行しない。
 
@@ -101,7 +103,7 @@ stack-review submit
 
 レイヤーの差し込み・並べ替え・リネーム・削除は、利用者が `gh stack modify` の対話 TUI で行う。エージェントからは操作できない。変更後に `stack-review submit` を実行すると、最後の `gh stack link` が全ブランチを下から上の順で受け取り、GitHub 上のスタック構成を現在のブランチ順に合わせる。既存 PR の base は `gh pr edit` では変更しない。
 
-リネームしたレイヤーは、`descriptions/` の draft ファイルも新しいブランチ名へ手でリネームする。古いファイルを残すと孤児 draft の警告が出て、既存 PR を発見できず重複 PR が作られる。レイヤーを削除しても GitHub 上の PR は残るため、不要な PR は手で閉じる。
+リネームしたレイヤーは、`descriptions/` の draft ファイルも新しいブランチ名へ手でリネームする。リネームしないと本文が引き継がれず、孤児 draft の警告が出る。既存 PR はブランチ名で探すため、リネーム後の submit では旧ブランチの PR は更新されず、新しい PR が作られる。旧 PR と、レイヤー削除後に残る PR は手で閉じる。
 
 ## 仕組みで注意している点
 
