@@ -64,7 +64,7 @@ gh stack rebase --upstack
 
 ## draft を頼まれたとき
 
-draft は `stack-review` の実行前でも後でも書ける。ただし `stack-review submit` の前に、全レイヤーのタイトルを埋める。
+draft は `stack-review` の実行前でも後でも書ける。ただし `stack-review submit` の前に、全レイヤーのタイトルを埋める。レビュー起動後に書いた draft は control タブの表示に反映されないが、submit は最新の内容を読む。
 
 保存先は次の形になる。`<absolute-git-dir>` は `git rev-parse --absolute-git-dir` で調べる。
 
@@ -74,7 +74,7 @@ draft は `stack-review` の実行前でも後でも書ける。ただし `stack
 
 ファイル名には JavaScript の `encodeURIComponent` を使う。`refactor/foo` なら `refactor%2Ffoo.md` になる。ブランチ名をそのままディレクトリとして扱わない。
 
-1 行目の `# ` 見出しが PR タイトルで、2 行目以降が本文になる。
+1 行目の `# ` 見出しが PR タイトルで、2 行目以降が本文になる。1 行目が `# ` で始まらないファイルはエラーになる。
 
 ```markdown
 # セッション期限切れを処理する
@@ -88,7 +88,7 @@ draft は `stack-review` の実行前でも後でも書ける。ただし `stack
 
 レイヤーの差し込み・並べ替え・リネーム・削除には `gh stack modify` の対話 TUI が必要になる。あなたからは操作できないため、対象リポジトリで利用者に実行してもらう。変更後の `stack-review submit` は、最後の `gh stack link` に全ブランチを下から上の順で渡し、GitHub 上のスタック構成を現在のブランチ順に合わせる。既存 PR の base は `gh pr edit` では変更しない。
 
-リネームした場合は、`descriptions/` の draft ファイルも新しいブランチ名へ利用者が手でリネームする。古いファイルを残すと孤児 draft の警告が出て、既存 PR を発見できず重複 PR が作られる。削除したレイヤーの PR は GitHub 上に残るため、利用者が手で閉じる。
+リネームした場合は、`descriptions/` の draft ファイルも新しいブランチ名へ利用者が手でリネームする。リネームしないと本文が引き継がれず、孤児 draft の警告が出る。既存 PR はブランチ名で探すため、リネーム後の submit では旧ブランチの PR は更新されず、新しい PR が作られる。旧 PR と、削除したレイヤーの PR は GitHub 上に残るため、利用者が手で閉じる。
 
 ## submit を頼まれたとき
 
